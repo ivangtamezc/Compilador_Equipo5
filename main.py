@@ -1,0 +1,78 @@
+import sys
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+
+from lark import Tree
+from lexer_parser import parse
+from semantic import SemanticAnalyzer
+from codegen import CodeGenerator
+from evaluator import Evaluator
+
+
+def print_quads(quads):
+    if not quads:
+        return
+    w0 = max(len(q[0]) for q in quads)
+    w1 = max(len(q[1]) for q in quads)
+    w2 = max(len(q[2]) for q in quads)
+    w3 = max(len(q[3]) for q in quads)
+    for i, (op, a1, a2, res) in enumerate(quads):
+        print(f"[{i:>2}]  ( {op:<{w0}} , {a1:>{w1}} , {a2:>{w2}} , {res:>{w3}} )")
+
+
+def main():
+    print("=" * 50)
+    print("  Compilador_Equipo5")
+    print("  Ivan Gerardo Tamez Cavazos")
+    print("  Marco Antonio Lucio Sosa")
+    print("=" * 50)
+    print()
+
+    if len(sys.argv) < 2:
+        print("Uso: python main.py <archivo.txt>")
+        sys.exit(1)
+
+    filename = sys.argv[1]
+    try:
+        with open(filename, "r", encoding="utf-8") as f:
+            code = f.read()
+    except FileNotFoundError:
+        print(f"Error: no se encontró el archivo '{filename}'")
+        sys.exit(1)
+
+    # ── Análisis léxico / sintáctico ────────────────────────────────────────
+    result = parse(code)
+    if not isinstance(result, Tree):
+        print(result)
+        sys.exit(1)
+
+    print("=== Árbol Sintáctico ===")
+    print(result.pretty())
+
+    # ── Análisis semántico ──────────────────────────────────────────────────
+    print("=== Análisis Semántico ===")
+    errors = SemanticAnalyzer(result).analyze()
+    if errors:
+        print(f"{len(errors)} error(es) encontrado(s):")
+        for e in errors:
+            print(f"  {e}")
+        sys.exit(1)
+
+    print("OK")
+    print()
+
+    # ── Generación de código ────────────────────────────────────────────────
+    quads = CodeGenerator(result).generate()
+    print(f"=== Código Intermedio (Cuádruplos) ===")
+    print(f"{len(quads)} cuádruplo(s) generado(s)")
+    print()
+    print_quads(quads)
+    print()
+
+    # ── Ejecución ───────────────────────────────────────────────────────────
+    print("=== Resultado ===")
+    Evaluator(quads).run()
+
+
+if __name__ == "__main__":
+    main()
