@@ -33,9 +33,8 @@ class SemanticAnalyzer:
     def __init__(self, tree):
         self.tree = tree
         self.errors = []
-        # pila de scopes; cada scope es un dict {nombre: tipo}
+        # pila de scopes, cada scope es un dict {nombre: tipo}
         # scopes[0] = scope global (variables del programa)
-        # scopes[-1] = scope activo en este momento
         self.scopes = [{}]
         # tabla de procedimientos: {nombre: ProcSignature}
         self.proc_table = {}
@@ -73,31 +72,45 @@ class SemanticAnalyzer:
                 return scope[name]
         return None
 
-    # ── dispatch ────────────────────────────────────────────────────────────
+    # métodos principales
 
+    # método principal de visiteo
+    # recursivamente visita cada nodo del AST y a través de getattr realiza el análisis semántico
+    # necesario específico para el nodo
     def _visit(self, node):
+        # si no tenemos nada definido en la grámatica para ese token
         if isinstance(node, Token):
             return
+        # getattr es un método de conveniencia para encontrar el método particular del nodo pasado
+        # es decir, si el nodo es "program", handler se volverá una referencia al método _v_program
+        # si no existe, devuelve None
         handler = getattr(self, f"_v_{node.data}", None)
         if handler:
             handler(node)
         else:
+            # no hay handler para este tipo de nodo (típicamente nodos envoltorio
+            # como stmt_block, stmt, block, etc.); recorremos sus hijos
+            # recursivamente para llegar a nodos que sí tengan handler.
             for child in node.children:
                 if isinstance(child, Tree):
                     self._visit(child)
 
+    # método para inferir el resultado esperado de una expresión al ser ejecutada
+    # permite métodos comparar el tipo de resultado obtenido con el tipo de resultado esperado
     def _infer(self, node):
-        """Regresa el tipo inferido de un nodo de expresión."""
         if isinstance(node, Token):
             return self._infer_token(node)
+        # consigue la función infer en base al nombre del nodo
         handler = getattr(self, f"_infer_{node.data}", None)
         if handler:
             return handler(node)
+        # si no tenemos un handler definido, revisamos a sus hijos
         for child in node.children:
             if isinstance(child, Tree):
                 self._infer(child)
         return "unknown"
 
+    # método de conveniencia para estandarizar errores
     def _add_error(self, msg, node=None):
         line = col = None
         if isinstance(node, Token):
@@ -107,7 +120,8 @@ class SemanticAnalyzer:
             col = getattr(node.meta, "column", None)
         self.errors.append(SemanticError(msg, line, col))
 
-    # ── utilidades de tipos ─────────────────────────────────────────────────
+    # utilidades de tipos 
+    # para evitar reduncia al estar checando!!
 
     def _is_numeric(self, t):
         return t in ("int", "float")
@@ -125,6 +139,7 @@ class SemanticAnalyzer:
             return True
         return decl_type == expr_type
 
+
     def _resolve_type(self, type_node):
         # type_of tiene un único hijo Token (TYPE) con el valor del tipo
         for child in type_node.children:
@@ -135,34 +150,34 @@ class SemanticAnalyzer:
     # ── recorrido del programa ──────────────────────────────────────────────
 
     def _v_program(self, node):
-        # children: Token(ID), Tree(var_section), Tree(proc_section), Tree(statement)
-        # PASO 1: recopilar todas las variables globales
+        # paso 1: recopila todas las variables del programa, al menos en ese nivel
         for child in node.children:
             if isinstance(child, Tree) and child.data == "var_section":
                 self._visit(child)
 
-        # PASO 2: recopilar las FIRMAS de procedimientos antes de visitar sus cuerpos
+        # paso 2: recopilar las firmas de procedimientos (nombre del metodo y argumentos) antes de visitar sus cuerpos
         # esto permite que un procedimiento pueda llamar a otro definido más adelante
         for child in node.children:
             if isinstance(child, Tree) and child.data == "proc_section":
                 self._collect_proc_signatures(child)
 
-        # PASO 3: visitar los cuerpos de los procedimientos (ya con todas las firmas conocidas)
+        # paso 3: recorrer el contenido de los procedimientos (ya con todas las firmas (métodos y sus atributos) conocidas)
         for child in node.children:
             if isinstance(child, Tree) and child.data == "proc_section":
                 self._visit(child)
 
-        # PASO 4: visitar el bloque principal (begin...end)
+        # paso 4: visitar el bloque principal (begin...end) una vez que se tenga todo lo anterior
         for child in node.children:
             if isinstance(child, Tree) and child.data == "statement":
                 self._visit(child)
 
+    # método de conveniencia para recorrer y registar los procedures como firmas 
     def _collect_proc_signatures(self, proc_section_node):
-        """Pasada previa: registra todos los procedimientos con sus parámetros."""
         for child in proc_section_node.children:
             if isinstance(child, Tree) and child.data == "procedure":
                 self._register_procedure(child)
 
+    # método de conveniencia para registrar 
     def _register_procedure(self, proc_node):
         # children: Token(ID), [Tree(param_list)], Tree(stmt_block)
         id_tok = proc_node.children[0]
@@ -200,7 +215,7 @@ class SemanticAnalyzer:
         id_tok = node.children[0]
         name = str(id_tok)
 
-        # abrimos un scope local para el cuerpo del procedimiento
+        # abrimos un scope para el cuerpo del procedimiento
         self._push_scope()
         prev_proc = self.current_proc
         self.current_proc = name
@@ -362,7 +377,7 @@ class SemanticAnalyzer:
                     id_tok,
                 )
 
-    # ── inferencia de tipos en expresiones ──────────────────────────────────
+    # inferencia de tipos en expresiones particulares 
 
     def _infer_token(self, tok):
         if tok.type == "NUMBER":
