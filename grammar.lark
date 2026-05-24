@@ -9,9 +9,10 @@ procedure    : ID "(" param_list? ")" "{" stmt_block "}"
 param_list   : param ("," param)*
 param        : ID ":" type_of
 
-type_of : "int" | "float" | "string" | "bool"
+type_of : TYPE
+TYPE    : "int" | "float" | "string" | "bool"
 
-statement  : "begin" stmt_block "end" ";"
+statement  : "begin" ";" stmt_block "end" ";"
 stmt_block : stmt*
 
 stmt : assignment
@@ -44,10 +45,6 @@ return_stmt : "return" expr ";"
 proc_call : ID "(" arg_list? ")"
 arg_list  : expr ("," expr)*
 
-// las expresiones tienen una precedencia de menor a mayor: or → and → not → rel → add → mult → factor
-// el '?' antes de la regla hace que Lark colapse el nodo si solo tiene un hijo
-// permitiendo un árbol AST más limpio de parsear
-
 ?expr     : expr_or
 ?expr_or  : expr_and ("or"  expr_and)*
 ?expr_and : expr_not ("and" expr_not)*
@@ -64,7 +61,7 @@ factor : NUMBER
        | proc_call
        | ID
        | "(" expr ")"
-       | "-" factor   -> neg // si un factor viene con un - antes, cambialo a nodo tipo neg
+       | "-" factor   -> neg
 
 REL_OP   : ">=" | "<=" | "==" | "!=" | ">" | "<"
 ADD_OP   : "+" | "-"

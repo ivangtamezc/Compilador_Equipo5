@@ -1,0 +1,62 @@
+program main{
+	var a, b : int;
+	var f1, f2 : float;
+	var res : int;
+	var resf : float;
+	begin;
+		write("=== Operadores Aritmeticos enteros ===");
+		a := 10;
+		b := 3;
+
+		res := a + b;
+		write("10 + 3 =");
+		write(res);
+
+		res := a - b;
+		write("10 - 3 =");
+		write(res);
+
+		res := a * b;
+		write("10 * 3 =");
+		write(res);
+
+		res := a % b;
+		write("10 % 3 =");
+		write(res);
+
+		// negacion unaria
+		res := -a;
+		write("negacion -10 =");
+		write(res);
+
+		// expresion compleja combinada
+		res := a * b + a - b;
+		write("10*3 + 10 - 3 =");
+		write(res);
+
+		// precedencia: mult antes que suma
+		res := a + b * b;
+		write("10 + 3*3 =");
+		write(res);
+
+		write("=== Operadores Aritmeticos flotantes ===");
+		f1 := 7.5;
+		f2 := 2.5;
+
+		resf := f1 + f2;
+		write("7.5 + 2.5 =");
+		write(resf);
+
+		resf := f1 - f2;
+		write("7.5 - 2.5 =");
+		write(resf);
+
+		resf := f1 * f2;
+		write("7.5 * 2.5 =");
+		write(resf);
+
+		resf := f1 / f2;
+		write("7.5 / 2.5 =");
+		write(resf);
+	end;
+}

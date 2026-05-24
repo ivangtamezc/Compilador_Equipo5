@@ -1,0 +1,79 @@
+program main{
+	var x, y, z : int;
+	var f : float;
+	var b : bool;
+	var s : string;
+	begin;
+		write("=== Asignaciones ===");
+
+		// asignacion simple con literal
+		x := 10;
+		write("x = 10:");
+		write(x);
+
+		// asignacion con expresion aritmetica
+		y := x * 2 + 5;
+		write("y = x*2+5 = 25:");
+		write(y);
+
+		// asignacion variable a variable
+		z := y;
+		write("z = y = 25:");
+		write(z);
+
+		// asignacion con expresion compleja (precedencia y parentesis)
+		z := (x + y) * (y - x);
+		write("z = (10+25)*(25-10) = 525:");
+		write(z);
+
+		// reasignacion acumulada
+		x := 1;
+		x := x + 1;
+		x := x + 1;
+		x := x + 1;
+		write("x acumulado (1+1+1+1) = 4:");
+		write(x);
+
+		// asignacion de float
+		f := 1.5;
+		write("f = 1.5:");
+		write(f);
+
+		f := f + 0.5;
+		write("f = f + 0.5 = 2.0:");
+		write(f);
+
+		// asignacion de bool con literal
+		b := true;
+		write("b = true:");
+		write(b);
+
+		b := false;
+		write("b = false:");
+		write(b);
+
+		// asignacion de bool con expresion relacional
+		b := (x > 2);
+		write("b = (4 > 2) = true:");
+		write(b);
+
+		b := (x == 99);
+		write("b = (4 == 99) = false:");
+		write(b);
+
+		// asignacion de string
+		s := "primer valor";
+		write("s:");
+		write(s);
+
+		s := "segundo valor";
+		write("s reasignado:");
+		write(s);
+
+		// asignacion con negacion unaria
+		y := 7;
+		z := -y;
+		write("z = -7:");
+		write(z);
+	end;
+}
