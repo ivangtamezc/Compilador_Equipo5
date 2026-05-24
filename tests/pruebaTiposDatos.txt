@@ -1,0 +1,43 @@
+program main{
+	var entero : int;
+	var flotante : float;
+	var cadena : string;
+	var bandera : bool;
+	begin;
+		write("=== Tipos de Datos ===");
+
+		// tipo int
+		entero := 42;
+		write("Entero:");
+		write(entero);
+
+		// tipo float
+		flotante := 3.14;
+		write("Flotante:");
+		write(flotante);
+
+		// tipo string
+		cadena := "compiladores";
+		write("Cadena:");
+		write(cadena);
+
+		// tipo bool verdadero
+		bandera := true;
+		write("Bool verdadero:");
+		write(bandera);
+
+		// tipo bool falso
+		bandera := false;
+		write("Bool falso:");
+		write(bandera);
+
+		// reasignacion de tipos
+		entero := -99;
+		write("Entero negativo:");
+		write(entero);
+
+		flotante := 0.001;
+		write("Flotante pequeno:");
+		write(flotante);
+	end;
+}

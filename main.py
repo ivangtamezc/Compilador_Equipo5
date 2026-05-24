@@ -40,7 +40,6 @@ def main():
         print(f"Error: no se encontró el archivo '{filename}'")
         sys.exit(1)
 
-    # ── Análisis léxico / sintáctico ────────────────────────────────────────
     result = parse(code)
     if not isinstance(result, Tree):
         print(result)
@@ -49,7 +48,6 @@ def main():
     print("=== Árbol Sintáctico ===")
     print(result.pretty())
 
-    # ── Análisis semántico ──────────────────────────────────────────────────
     print("=== Análisis Semántico ===")
     errors = SemanticAnalyzer(result).analyze()
     if errors:
@@ -61,17 +59,16 @@ def main():
     print("OK")
     print()
 
-    # ── Generación de código ────────────────────────────────────────────────
-    quads = CodeGenerator(result).generate()
+    quads = CodeGenerator(result)
+    generated = quads.generate()
     print(f"=== Código Intermedio (Cuádruplos) ===")
-    print(f"{len(quads)} cuádruplo(s) generado(s)")
+    print(f"{len(generated)} cuádruplo(s) generado(s)")
     print()
-    print_quads(quads)
+    print_quads(generated)
     print()
 
-    # ── Ejecución ───────────────────────────────────────────────────────────
     print("=== Resultado ===")
-    Evaluator(quads).run()
+    Evaluator(generated, proc_table=quads.proc_table).run()
 
 
 if __name__ == "__main__":

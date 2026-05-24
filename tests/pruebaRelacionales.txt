@@ -1,0 +1,83 @@
+program main{
+	var a, b : int;
+	begin;
+		write("=== Operadores Relacionales ===");
+		a := 5;
+		b := 10;
+
+		// menor que
+		if (a < b) then
+		{
+			write("5 < 10 : verdadero");
+		}
+
+		// mayor que
+		if (a > b) then
+		{
+			write("error");
+		} else
+		{
+			write("5 > 10 : falso");
+		}
+
+		// menor o igual (caso igual)
+		if (a <= 5) then
+		{
+			write("5 <= 5 : verdadero");
+		}
+
+		// menor o igual (caso menor)
+		if (a <= 4) then
+		{
+			write("error");
+		} else
+		{
+			write("5 <= 4 : falso");
+		}
+
+		// mayor o igual (caso mayor)
+		if (b >= 10) then
+		{
+			write("10 >= 10 : verdadero");
+		}
+
+		// mayor o igual (caso falso)
+		if (a >= 6) then
+		{
+			write("error");
+		} else
+		{
+			write("5 >= 6 : falso");
+		}
+
+		// igualdad
+		if (a == 5) then
+		{
+			write("5 == 5 : verdadero");
+		}
+
+		// igualdad falsa
+		if (a == b) then
+		{
+			write("error");
+		} else
+		{
+			write("5 == 10 : falso");
+		}
+
+		// desigualdad
+		if (a != b) then
+		{
+			write("5 != 10 : verdadero");
+		}
+
+		// desigualdad falsa
+		if (a != 5) then
+		{
+			write("error");
+		} else
+		{
+			write("5 != 5 : falso");
+		}
+	end;
+}

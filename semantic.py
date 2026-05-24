@@ -12,19 +12,66 @@ class SemanticError:
             return f"Error semántico [línea {self.line}, col {self.column}]: {self.message}"
         return f"Error semántico: {self.message}"
 
-# clase encargada de validar los tipos dentro de las operaciones
-# revisa que no se hagan operaciones inválidas entre tipos, como la multiplación de una variable tipo string
+
+# representa la firma de un procedimiento declarado:
+# - name:   nombre del procedimiento
+# - params: lista de tuplas (nombre_param, tipo_param), en orden de declaración
+class ProcSignature:
+    def __init__(self, name, params):
+        self.name = name
+        # params: lista de tuplas (nombre, tipo, token_id) — token puede ser None
+        self.params = params
+
+    @property
+    def param_types(self):
+        return [p[1] for p in self.params]
+
+
+# clase encargada de validar la semántica del programa:
+# tipos en operaciones, declaraciones, scopes, llamadas a procedimientos, etc.
 class SemanticAnalyzer:
     def __init__(self, tree):
         self.tree = tree
         self.errors = []
-        self.symbol_table = {}  # name -> type_str
+        # pila de scopes; cada scope es un dict {nombre: tipo}
+        # scopes[0] = scope global (variables del programa)
+        # scopes[-1] = scope activo en este momento
+        self.scopes = [{}]
+        # tabla de procedimientos: {nombre: ProcSignature}
+        self.proc_table = {}
+        # nombre del procedimiento actual (None si estamos en main/begin)
+        self.current_proc = None
 
     def analyze(self):
         self.errors.clear()
-        self.symbol_table.clear()
+        self.scopes = [{}]
+        self.proc_table.clear()
+        self.current_proc = None
         self._visit(self.tree)
         return self.errors
+
+    # ── manejo de scopes ────────────────────────────────────────────────────
+
+    def _push_scope(self):
+        self.scopes.append({})
+
+    def _pop_scope(self):
+        self.scopes.pop()
+
+    def _declare(self, name, type_, tok=None):
+        """Declara una variable en el scope actual. Reporta error si ya existe."""
+        if name in self.scopes[-1]:
+            self._add_error(f"Variable '{name}' declarada más de una vez", tok)
+            return False
+        self.scopes[-1][name] = type_
+        return True
+
+    def _lookup(self, name):
+        """Busca una variable recorriendo la pila de scopes desde el más interno."""
+        for scope in reversed(self.scopes):
+            if name in scope:
+                return scope[name]
+        return None
 
     # ── dispatch ────────────────────────────────────────────────────────────
 
@@ -40,7 +87,7 @@ class SemanticAnalyzer:
                     self._visit(child)
 
     def _infer(self, node):
-        """Return the inferred type string of an expression node."""
+        """Regresa el tipo inferido de un nodo de expresión."""
         if isinstance(node, Token):
             return self._infer_token(node)
         handler = getattr(self, f"_infer_{node.data}", None)
@@ -60,7 +107,7 @@ class SemanticAnalyzer:
             col = getattr(node.meta, "column", None)
         self.errors.append(SemanticError(msg, line, col))
 
-    # ── type utilities ──────────────────────────────────────────────────────
+    # ── utilidades de tipos ─────────────────────────────────────────────────
 
     def _is_numeric(self, t):
         return t in ("int", "float")
@@ -78,40 +125,116 @@ class SemanticAnalyzer:
             return True
         return decl_type == expr_type
 
-    # ── declarations ────────────────────────────────────────────────────────
+    def _resolve_type(self, type_node):
+        # type_of tiene un único hijo Token (TYPE) con el valor del tipo
+        for child in type_node.children:
+            if isinstance(child, Token):
+                return child.value
+        return "unknown"
+
+    # ── recorrido del programa ──────────────────────────────────────────────
+
+    def _v_program(self, node):
+        # children: Token(ID), Tree(var_section), Tree(proc_section), Tree(statement)
+        # PASO 1: recopilar todas las variables globales
+        for child in node.children:
+            if isinstance(child, Tree) and child.data == "var_section":
+                self._visit(child)
+
+        # PASO 2: recopilar las FIRMAS de procedimientos antes de visitar sus cuerpos
+        # esto permite que un procedimiento pueda llamar a otro definido más adelante
+        for child in node.children:
+            if isinstance(child, Tree) and child.data == "proc_section":
+                self._collect_proc_signatures(child)
+
+        # PASO 3: visitar los cuerpos de los procedimientos (ya con todas las firmas conocidas)
+        for child in node.children:
+            if isinstance(child, Tree) and child.data == "proc_section":
+                self._visit(child)
+
+        # PASO 4: visitar el bloque principal (begin...end)
+        for child in node.children:
+            if isinstance(child, Tree) and child.data == "statement":
+                self._visit(child)
+
+    def _collect_proc_signatures(self, proc_section_node):
+        """Pasada previa: registra todos los procedimientos con sus parámetros."""
+        for child in proc_section_node.children:
+            if isinstance(child, Tree) and child.data == "procedure":
+                self._register_procedure(child)
+
+    def _register_procedure(self, proc_node):
+        # children: Token(ID), [Tree(param_list)], Tree(stmt_block)
+        id_tok = proc_node.children[0]
+        name = str(id_tok)
+
+        if name in self.proc_table:
+            self._add_error(f"Procedimiento '{name}' declarado más de una vez", id_tok)
+            return
+
+        params = []  # tuplas (nombre, tipo, token_id) para preservar la posición
+        for child in proc_node.children[1:]:
+            if isinstance(child, Tree) and child.data == "param_list":
+                for param_node in child.children:
+                    if isinstance(param_node, Tree) and param_node.data == "param":
+                        # param: Token(ID), Tree(type_of)
+                        ptok = param_node.children[0]
+                        pname = str(ptok)
+                        ptype = self._resolve_type(param_node.children[1])
+                        params.append((pname, ptype, ptok))
+
+        self.proc_table[name] = ProcSignature(name, params)
+
+    # ── declaraciones ───────────────────────────────────────────────────────
 
     def _v_var_decl(self, node):
-        # children: ID+ ... type_of (last child)
+        # children: ID+ ... type_of (último hijo)
         type_node = node.children[-1]
         type_name = self._resolve_type(type_node)
         for child in node.children[:-1]:
             if isinstance(child, Token):
-                name = str(child)
-                if name in self.symbol_table:
-                    self._add_error(f"Variable '{name}' declarada más de una vez", child)
-                else:
-                    self.symbol_table[name] = type_name
+                self._declare(str(child), type_name, child)
 
-    def _resolve_type(self, type_node):
-        # type_of has one TYPE token child (grammar uses named terminal TYPE)
-        for child in type_node.children:
-            if isinstance(child, Token):
-                return child.value  # "int", "float", "string", "bool"
-        return "unknown"
+    def _v_procedure(self, node):
+        # children: Token(ID), [Tree(param_list)], Tree(stmt_block)
+        id_tok = node.children[0]
+        name = str(id_tok)
+
+        # abrimos un scope local para el cuerpo del procedimiento
+        self._push_scope()
+        prev_proc = self.current_proc
+        self.current_proc = name
+
+        # declaramos los parámetros como variables locales
+        # (ya tenemos la firma en proc_table, la reutilizamos)
+        sig = self.proc_table.get(name)
+        if sig is not None:
+            for ptuple in sig.params:
+                pname, ptype, ptok = ptuple
+                self._declare(pname, ptype, ptok)
+
+        # visitamos el cuerpo del procedimiento
+        for child in node.children[1:]:
+            if isinstance(child, Tree) and child.data == "stmt_block":
+                self._visit(child)
+
+        # cerramos el scope al salir
+        self.current_proc = prev_proc
+        self._pop_scope()
 
     # ── statements ──────────────────────────────────────────────────────────
 
     def _v_assignment(self, node):
-        # children: Token(ID), Tree(expr)  — ":=" and ";" are filtered
+        # children: Token(ID), Tree(expr)
         id_tok = node.children[0]
         expr_node = node.children[1]
         name = str(id_tok)
-        if name not in self.symbol_table:
+        decl_type = self._lookup(name)
+        if decl_type is None:
             self._add_error(f"Variable '{name}' usada sin declarar", id_tok)
             self._infer(expr_node)
             return
         expr_type = self._infer(expr_node)
-        decl_type = self.symbol_table[name]
         if not self._assign_compatible(decl_type, expr_type):
             self._add_error(
                 f"Asignación de tipo incorrecto a '{name}': "
@@ -120,21 +243,20 @@ class SemanticAnalyzer:
             )
 
     def _v_increment(self, node):
-        # children: Token(ID)  — "++" / "--" filtered
+        # children: Token(ID), Token(INCR_OP)
         id_tok = node.children[0]
         name = str(id_tok)
-        if name not in self.symbol_table:
+        decl_type = self._lookup(name)
+        if decl_type is None:
             self._add_error(f"Variable '{name}' usada sin declarar", id_tok)
             return
-        t = self.symbol_table[name]
-        if not self._is_numeric(t):
+        if not self._is_numeric(decl_type):
             self._add_error(
-                f"Incremento/decremento sobre variable no numérica '{name}' (tipo '{t}')",
+                f"Incremento/decremento sobre variable no numérica '{name}' (tipo '{decl_type}')",
                 id_tok,
             )
 
     def _v_if_stmt(self, node):
-        # children: Tree(expr), Tree(block) [, Tree(block)]
         cond = node.children[0]
         cond_type = self._infer(cond)
         if cond_type not in ("bool", "unknown"):
@@ -147,7 +269,6 @@ class SemanticAnalyzer:
                 self._visit(child)
 
     def _v_while_stmt(self, node):
-        # children: Tree(expr), Tree(block)
         cond = node.children[0]
         cond_type = self._infer(cond)
         if cond_type not in ("bool", "unknown"):
@@ -160,7 +281,6 @@ class SemanticAnalyzer:
                 self._visit(child)
 
     def _v_for_stmt(self, node):
-        # children: for_init, expr (condition), for_update, block
         self._visit(node.children[0])
         cond = node.children[1]
         cond_type = self._infer(cond)
@@ -173,16 +293,15 @@ class SemanticAnalyzer:
         self._visit(node.children[3])
 
     def _v_for_init(self, node):
-        # children: Token(ID), Tree(expr)
         id_tok = node.children[0]
         expr_node = node.children[1]
         name = str(id_tok)
-        if name not in self.symbol_table:
+        decl_type = self._lookup(name)
+        if decl_type is None:
             self._add_error(f"Variable '{name}' usada sin declarar", id_tok)
             self._infer(expr_node)
             return
         expr_type = self._infer(expr_node)
-        decl_type = self.symbol_table[name]
         if not self._assign_compatible(decl_type, expr_type):
             self._add_error(
                 f"Tipo incorrecto en inicialización del 'for' a '{name}': "
@@ -196,16 +315,54 @@ class SemanticAnalyzer:
                 self._infer(child)
 
     def _v_return_stmt(self, node):
+        # validamos la expresión y reportamos si se usa return fuera de un procedimiento
+        if self.current_proc is None:
+            self._add_error("Sentencia 'return' fuera de un procedimiento", node)
         for child in node.children:
             if isinstance(child, Tree):
                 self._infer(child)
 
-    def _v_arg_list(self, node):
-        for child in node.children:
-            if isinstance(child, Tree):
-                self._infer(child)
+    def _v_proc_call(self, node):
+        # children: Token(ID), [Tree(arg_list)]
+        id_tok = node.children[0]
+        name = str(id_tok)
 
-    # ── expression type inference ────────────────────────────────────────────
+        # capturamos los tipos de los argumentos (en orden)
+        arg_types = []
+        arg_nodes = []
+        for child in node.children[1:]:
+            if isinstance(child, Tree) and child.data == "arg_list":
+                for arg in child.children:
+                    if isinstance(arg, Tree) or isinstance(arg, Token):
+                        arg_nodes.append(arg)
+                        arg_types.append(self._infer(arg))
+
+        # validamos que el procedimiento exista
+        sig = self.proc_table.get(name)
+        if sig is None:
+            self._add_error(f"Procedimiento '{name}' no está declarado", id_tok)
+            return
+
+        # validamos número de argumentos
+        if len(arg_types) != len(sig.params):
+            self._add_error(
+                f"Procedimiento '{name}' espera {len(sig.params)} argumento(s), "
+                f"se recibió(eron) {len(arg_types)}",
+                id_tok,
+            )
+            return
+
+        # validamos tipos de argumentos uno por uno
+        for i, (arg_type, ptuple) in enumerate(zip(arg_types, sig.params), start=1):
+            pname, ptype, _ = ptuple
+            if not self._assign_compatible(ptype, arg_type):
+                self._add_error(
+                    f"Argumento #{i} ('{pname}') de '{name}': "
+                    f"se esperaba '{ptype}', se obtuvo '{arg_type}'",
+                    id_tok,
+                )
+
+    # ── inferencia de tipos en expresiones ──────────────────────────────────
 
     def _infer_token(self, tok):
         if tok.type == "NUMBER":
@@ -216,17 +373,14 @@ class SemanticAnalyzer:
             return "string"
         if tok.type == "ID":
             name = str(tok)
-            if name not in self.symbol_table:
+            decl_type = self._lookup(name)
+            if decl_type is None:
                 self._add_error(f"Variable '{name}' usada sin declarar", tok)
                 return "unknown"
-            return self.symbol_table[name]
+            return decl_type
         return "unknown"
 
-    def _infer_expr(self, node):
-        return self._infer(node.children[0])
-
     def _infer_expr_or(self, node):
-        # children: expr_and+  ("or" filtered)
         types = [self._infer(c) for c in node.children if isinstance(c, Tree)]
         if len(types) == 1:
             return types[0]
@@ -239,7 +393,6 @@ class SemanticAnalyzer:
         return "bool"
 
     def _infer_expr_and(self, node):
-        # children: expr_not+  ("and" filtered)
         types = [self._infer(c) for c in node.children if isinstance(c, Tree)]
         if len(types) == 1:
             return types[0]
@@ -252,8 +405,6 @@ class SemanticAnalyzer:
         return "bool"
 
     def _infer_expr_not(self, node):
-        # child is Tree(expr_not) → "not" was applied
-        # child is Tree(expr_rel)  → passthrough
         child = node.children[0]
         t = self._infer(child)
         if isinstance(child, Tree) and child.data == "expr_not":
@@ -266,13 +417,10 @@ class SemanticAnalyzer:
         return t
 
     def _infer_expr_rel(self, node):
-        # children: expr_add  OR  expr_add, op_rel, expr_add
+        # con '?' en la regla, si llegamos aquí siempre hay dos operandos
         trees = [c for c in node.children if isinstance(c, Tree)]
-        if len(trees) == 1:
-            return self._infer(trees[0])
-        # trees[0]=expr_add, trees[1]=op_rel, trees[2]=expr_add
         left = self._infer(trees[0])
-        right = self._infer(trees[2])
+        right = self._infer(trees[1])
         if left != "unknown" and right != "unknown":
             if self._is_numeric(left) != self._is_numeric(right):
                 self._add_error(
@@ -282,7 +430,6 @@ class SemanticAnalyzer:
         return "bool"
 
     def _infer_expr_add(self, node):
-        # children: expr_mult+  ("+"/"-" filtered)
         trees = [c for c in node.children if isinstance(c, Tree)]
         if len(trees) == 1:
             return self._infer(trees[0])
@@ -295,7 +442,6 @@ class SemanticAnalyzer:
         return self._numeric_result(types)
 
     def _infer_expr_mult(self, node):
-        # children: factor+  ("*"/"/"/"%"  filtered)
         trees = [c for c in node.children if isinstance(c, Tree)]
         if len(trees) == 1:
             return self._infer(trees[0])
@@ -307,30 +453,29 @@ class SemanticAnalyzer:
                 )
         return self._numeric_result(types)
 
+    def _infer_neg(self, node):
+        # children: [Tree(factor)] -- el "-" es literal anónimo, se filtra
+        t = self._infer(node.children[0])
+        if t not in ("int", "float", "unknown"):
+            self._add_error(
+                f"Operador unario '-' sobre tipo no numérico '{t}'", node
+            )
+        return t if self._is_numeric(t) else "unknown"
+
     def _infer_factor(self, node):
         if not node.children:
-            return "bool"   # fallback (shouldn't occur with new grammar)
+            return "unknown"
         child = node.children[0]
         if isinstance(child, Token):
             if child.type == "BOOL_LIT":
                 return "bool"
-            if child.type == "UMINUS":
-                # grammar: UMINUS factor  →  children[1] is Tree(factor)
-                t = self._infer(node.children[1])
-                if t not in ("int", "float", "unknown"):
-                    self._add_error(
-                        f"Operador unario '-' sobre tipo no numérico '{t}'", node
-                    )
-                return t if self._is_numeric(t) else "unknown"
-            return self._infer_token(child)   # NUMBER, FLOAT, STRING, ID
+            return self._infer_token(child)
         if isinstance(child, Tree):
-            if child.data == "expr":
-                return self._infer(child)
             if child.data == "proc_call":
-                self._visit(child)
+                # validamos la llamada (existencia, # de args, tipos) y devolvemos
+                # 'unknown' porque sin declaración de tipo de retorno no sabemos qué regresa
+                self._v_proc_call(child)
                 return "unknown"
-        return "unknown"
-
-    def _infer_proc_call(self, node):
-        self._visit(node)
+            # cualquier sub-expresión (por paréntesis): delegamos
+            return self._infer(child)
         return "unknown"

@@ -1,0 +1,83 @@
+program main{
+	var a, b : int;
+	begin;
+		write("=== Operadores Logicos ===");
+		a := 5;
+		b := 10;
+
+		// and: ambas condiciones verdaderas
+		if ((a < b) and (b > 3)) then
+		{
+			write("and(V,V) = verdadero");
+		}
+
+		// and: primera falsa
+		if ((a > b) and (b > 3)) then
+		{
+			write("error");
+		} else
+		{
+			write("and(F,V) = falso");
+		}
+
+		// and: segunda falsa
+		if ((a < b) and (b > 20)) then
+		{
+			write("error");
+		} else
+		{
+			write("and(V,F) = falso");
+		}
+
+		// and: ambas falsas
+		if ((a > b) and (b > 20)) then
+		{
+			write("error");
+		} else
+		{
+			write("and(F,F) = falso");
+		}
+
+		// or: primera verdadera
+		if ((a < b) or (b > 20)) then
+		{
+			write("or(V,F) = verdadero");
+		}
+
+		// or: segunda verdadera
+		if ((a > b) or (b > 3)) then
+		{
+			write("or(F,V) = verdadero");
+		}
+
+		// or: ambas falsas
+		if ((a > b) or (b > 20)) then
+		{
+			write("error");
+		} else
+		{
+			write("or(F,F) = falso");
+		}
+
+		// not de falso
+		if (not (a > b)) then
+		{
+			write("not(F) = verdadero");
+		}
+
+		// not de verdadero
+		if (not (a < b)) then
+		{
+			write("error");
+		} else
+		{
+			write("not(V) = falso");
+		}
+
+		// expresion logica compuesta: (a<b and b>3) or not(a==b)
+		if (((a < b) and (b > 3)) or (not (a == b))) then
+		{
+			write("expresion compuesta = verdadero");
+		}
+	end;
+}
