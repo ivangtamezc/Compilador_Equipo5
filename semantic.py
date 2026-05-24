@@ -12,7 +12,8 @@ class SemanticError:
             return f"Error semántico [línea {self.line}, col {self.column}]: {self.message}"
         return f"Error semántico: {self.message}"
 
-
+# clase encargada de validar los tipos dentro de las operaciones
+# revisa que no se hagan operaciones inválidas entre tipos, como la multiplación de una variable tipo string
 class SemanticAnalyzer:
     def __init__(self, tree):
         self.tree = tree

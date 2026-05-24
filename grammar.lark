@@ -1,14 +1,17 @@
 start : program
-
-program : "program" ID "{" var_section statement "}"
+program : "program" ID "{" var_section proc_section statement "}"
 
 var_section : var_decl*
 var_decl    : "var" ID ("," ID)* ":" type_of ";"
 
-type_of : TYPE
-TYPE    : "int" | "float" | "string" | "bool"
+proc_section : procedure*
+procedure    : ID "(" param_list? ")" "{" stmt_block "}"
+param_list   : param ("," param)*
+param        : ID ":" type_of
 
-statement  : "begin" ";" stmt_block "end" ";"
+type_of : "int" | "float" | "string" | "bool"
+
+statement  : "begin" stmt_block "end" ";"
 stmt_block : stmt*
 
 stmt : assignment
@@ -21,8 +24,9 @@ stmt : assignment
      | proc_call ";"
 
 assignment : ID ":=" expr ";"
+
 increment  : ID INCR_OP
-INCR_OP    : "++" | "--"
+INCR_OP : "++" | "--"
 
 if_stmt    : "if" "(" expr ")" "then" block ("else" block)?
 while_stmt : "while" "(" expr ")" "do" block
@@ -40,22 +44,18 @@ return_stmt : "return" expr ";"
 proc_call : ID "(" arg_list? ")"
 arg_list  : expr ("," expr)*
 
-expr     : expr_or
-expr_or  : expr_and ("or"  expr_and)*
-expr_and : expr_not ("and" expr_not)*
-expr_not : "not" expr_not
-         | expr_rel
+// las expresiones tienen una precedencia de menor a mayor: or → and → not → rel → add → mult → factor
+// el '?' antes de la regla hace que Lark colapse el nodo si solo tiene un hijo
+// permitiendo un árbol AST más limpio de parsear
 
-expr_rel : expr_add (op_rel expr_add)?
-
-op_rel : REL_OP
-REL_OP : ">=" | "<=" | "==" | "!=" | ">" | "<"
-
-expr_add  : expr_mult (ADD_OP expr_mult)*
-ADD_OP    : "+" | "-"
-
-expr_mult : factor (MUL_OP factor)*
-MUL_OP    : "*" | "/" | "%"
+?expr     : expr_or
+?expr_or  : expr_and ("or"  expr_and)*
+?expr_and : expr_not ("and" expr_not)*
+expr_not  : "not" expr_not
+          | expr_rel
+?expr_rel : expr_add (REL_OP expr_add)?
+?expr_add : expr_mult (ADD_OP expr_mult)*
+?expr_mult: factor (MUL_OP factor)*
 
 factor : NUMBER
        | FLOAT
@@ -64,14 +64,17 @@ factor : NUMBER
        | proc_call
        | ID
        | "(" expr ")"
-       | UMINUS factor
+       | "-" factor   -> neg // si un factor viene con un - antes, cambialo a nodo tipo neg
 
+REL_OP   : ">=" | "<=" | "==" | "!=" | ">" | "<"
+ADD_OP   : "+" | "-"
+MUL_OP   : "*" | "/" | "%"
 BOOL_LIT : "true" | "false"
-UMINUS   : "-"
+
+FLOAT  : /[0-9]+\.[0-9]+/
+NUMBER : /[0-9]+/
 
 ID     : /[A-Za-z][A-Za-z0-9_]*/
-NUMBER : /[0-9]+/
-FLOAT  : /[0-9]+\.[0-9]+/
 STRING : /\"[^\"]*\"/
 
 %ignore /[ \t\n\r]+/
