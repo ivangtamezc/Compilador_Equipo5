@@ -1,9 +1,0 @@
-program demo {
-        var x: int;
-        proc suma(x: int) {
-            return x;
-        }
-        begin;
-            x := suma(10);
-        end;
-    }
