@@ -3,22 +3,22 @@ program main{
 	var resf : float;
 
 	// procedimiento sin parametros
-	saludar() {
+	proc saludar() {
 		write("Hola desde procedimiento!");
 	}
 
 	// suma de dos enteros
-	suma(x: int, y: int) {
+	proc suma(x: int, y: int) {
 		return x + y;
 	}
 
 	// cuadrado de un entero
-	cuadrado(n: int) {
+	proc cuadrado(n: int) {
 		return n * n;
 	}
 
 	// maximo de dos enteros
-	mayor(a: int, b: int) {
+	proc mayor(a: int, b: int) {
 		if (a >= b) then
 		{
 			return a;
@@ -29,7 +29,7 @@ program main{
 	}
 
 	// calcula n! iterativamente usando variable global resultado
-	factorial(n: int) {
+	proc factorial(n: int) {
 		resultado := 1;
 		while (n > 1) do
 		{

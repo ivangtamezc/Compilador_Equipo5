@@ -5,7 +5,7 @@ var_section : var_decl*
 var_decl    : "var" ID ("," ID)* ":" type_of ";"
 
 proc_section : procedure*
-procedure    : ID "(" param_list? ")" "{" stmt_block "}"
+procedure    : "proc" ID "(" param_list? ")" "{" stmt_block "}"
 param_list   : param ("," param)*
 param        : ID ":" type_of
 
