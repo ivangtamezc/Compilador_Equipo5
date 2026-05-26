@@ -21,13 +21,6 @@ def print_quads(quads):
 
 
 def main():
-    print("=" * 50)
-    print("  Compilador_Equipo5")
-    print("  Ivan Gerardo Tamez Cavazos")
-    print("  Marco Antonio Lucio Sosa")
-    print("=" * 50)
-    print()
-
     if len(sys.argv) < 2:
         print("Uso: python main.py <archivo.txt>")
         sys.exit(1)
@@ -45,13 +38,12 @@ def main():
         print(result)
         sys.exit(1)
 
-    print("=== Árbol Sintáctico ===")
+    print("Árbol sintáctico:")
     print(result.pretty())
 
-    print("=== Análisis Semántico ===")
+    print("Análisis semántico:")
     errors = SemanticAnalyzer(result).analyze()
     if errors:
-        print(f"{len(errors)} error(es) encontrado(s):")
         for e in errors:
             print(f"  {e}")
         sys.exit(1)
@@ -61,13 +53,12 @@ def main():
 
     quads = CodeGenerator(result)
     generated = quads.generate()
-    print(f"=== Código Intermedio (Cuádruplos) ===")
-    print(f"{len(generated)} cuádruplo(s) generado(s)")
+    print(f"Cuádruplos ({len(generated)}):")
     print()
     print_quads(generated)
     print()
 
-    print("=== Resultado ===")
+    print("Salida:")
     Evaluator(generated, proc_table=quads.proc_table).run()
 
 

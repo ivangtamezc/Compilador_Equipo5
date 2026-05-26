@@ -5,8 +5,8 @@ class CodeGenerator:
     def __init__(self, tree):
         self.tree = tree
         self._quads = []
-        self._temp_count = 0
-        self._label_count = 0
+        self._temp_count = 0 # temps infinitas
+        self._label_count = 0 # labels infinitas
         # tabla de procedimientos: nombre -> {'label': L_func, 'params': [nombres]}
         # se usa para resolver llamadas y para que el evaluator pueda saltar al cuerpo
         self.proc_table = {}
@@ -38,6 +38,7 @@ class CodeGenerator:
         # root: start -> program; program: ID, var_section, proc_section, statement
         program = root.children[0]  # nodo 'program'
 
+        # guardamos las secciones de procedimiento y del statement( begin - end )
         proc_section = None
         statement = None
         for c in program.children:
@@ -49,6 +50,8 @@ class CodeGenerator:
         # var_section no genera código (las variables se crean al asignarse)
 
         # 1) Saltamos por encima de los cuerpos de procedimientos para llegar al main
+        # generamos un cuadruplo inicial que salte los cuadruplos de las funciones
+        # 
         l_main = self._new_label()
         self._emit("goto", "_", "_", l_main)
 
@@ -122,7 +125,7 @@ class CodeGenerator:
                 last = self._gen(child)
         return last
 
-    # ── statements ──────────────────────────────────────────────────────────
+    # los statementes empiezan con _exec
 
     def _exec_assignment(self, node):
         name = str(node.children[0])
@@ -193,7 +196,7 @@ class CodeGenerator:
         val = self._gen(node.children[1])
         self._emit(":=", val, "_", name)
 
-    # ── generación de expresiones ───────────────────────────────────────────
+    # generación de cuadruplos de epxresiones
 
     def _gen_expr_or(self, node):
         trees = [c for c in node.children if isinstance(c, Tree)]
