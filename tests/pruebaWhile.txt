@@ -11,4 +11,5 @@ program main{
 		}
 		write(x);
 	end;
+	return;
 }
