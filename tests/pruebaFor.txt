@@ -1,5 +1,10 @@
 program main{
 	var i,n,x : int;
+
+	proc hola(){
+		write("hola");
+	}
+
 	begin;
 		write("factorial for");
 		x:=1;
@@ -8,5 +13,6 @@ program main{
 			x := x * i;
 		}
 		write(x);
+		hola();
 	end;
 }

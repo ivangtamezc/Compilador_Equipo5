@@ -1,11 +1,11 @@
 class Evaluator:
     def __init__(self, quads, proc_table=None):
         self._quads = quads
-        # tabla de procedimientos: {nombre: {'label': L_func, 'params': [nombres]}}
+        # tablita de procedimientos: {nombre: {'label': L_func, 'params': [nombres]}}
         self._proc_table = proc_table or {}
 
         # namespace único y plano: globales, parámetros y temporales viven aquí
-        # (no manejamos scopes locales)
+        # no manejamos scopes locales
         self._env = {}
         # pila de direcciones de retorno (pc al que volver tras un return)
         self._return_stack = []
@@ -34,7 +34,6 @@ class Evaluator:
             if op == "label":
                 self._labels[a1] = i
 
-    # resolución de valores: literales, booleanos, o lookup en el namespace plano
     def _resolve(self, name):
         if name == "_":
             return None
@@ -118,8 +117,6 @@ class Evaluator:
             else:
                 print(val)
 
-        # ── llamadas a procedimientos (sin scopes locales) ───────────────────
-
         elif op == "param":
             # apilamos el valor del argumento para que el callee lo desempile
             self._param_stack.append(self._resolve(a1))
@@ -131,9 +128,6 @@ class Evaluator:
                 return pc
             self._return_stack.append(pc)
             self._return_target.append(res)
-            # NOTA: NO abrimos un scope nuevo. Los parámetros del callee se escriben
-            # directamente en el namespace global. Si una variable global se llama
-            # igual que un parámetro, será sobrescrita.
             pc = self._labels[proc["label"]]
 
         elif op == "recv_param":
