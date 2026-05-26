@@ -13,7 +13,7 @@ program main{
 			write(a);
 		}else
 		{
-			if(y<x) then
+			if(yx) then
 			{
 				i := x * (b * y);
 				write(x);

@@ -12,34 +12,8 @@ program main{
 		return x + y;
 	}
 
-	// cuadrado de un entero
-	proc cuadrado(n: int) {
-		return n * n;
-	}
-
-	// maximo de dos enteros
-	proc mayor(a: int, b: int) {
-		if (a >= b) then
-		{
-			return a;
-		} else
-		{
-			return b;
-		}
-	}
-
-	// calcula n! iterativamente usando variable global resultado
-	proc factorial(n: int) {
-		resultado := 1;
-		while (n > 1) do
-		{
-			resultado := resultado * n;
-			n--;
-		}
-	}
-
 	begin;
-		write("=== Llamadas a Funcion ===");
+		write("Llamadas a funciones");
 
 		// llamada sin retorno capturado (void)
 		saludar();
@@ -47,36 +21,6 @@ program main{
 		// llamada con retorno
 		resultado := suma(3, 4);
 		write("suma(3, 4) =");
-		write(resultado);
-
-		resultado := cuadrado(6);
-		write("cuadrado(6) =");
-		write(resultado);
-
-		resultado := mayor(10, 7);
-		write("mayor(10, 7) =");
-		write(resultado);
-
-		resultado := mayor(3, 15);
-		write("mayor(3, 15) =");
-		write(resultado);
-
-		// llamadas anidadas
-		resultado := suma(cuadrado(3), cuadrado(4));
-		write("suma(cuadrado(3), cuadrado(4)) = 9+16 =");
-		write(resultado);
-
-		resultado := mayor(suma(2, 3), cuadrado(2));
-		write("mayor(suma(2,3)=5, cuadrado(2)=4) =");
-		write(resultado);
-
-		// procedimiento que modifica variable global
-		factorial(5);
-		write("factorial(5) =");
-		write(resultado);
-
-		factorial(7);
-		write("factorial(7) =");
 		write(resultado);
 	end;
 }
