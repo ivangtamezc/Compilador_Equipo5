@@ -19,8 +19,6 @@ class CodeGenerator:
         self._gen_program(self.tree)
         return self._quads
 
-    # ── helpers ─────────────────────────────────────────────────────────────
-
     def _new_temp(self):
         self._temp_count += 1
         return f"t{self._temp_count}"
@@ -31,8 +29,6 @@ class CodeGenerator:
 
     def _emit(self, op, arg1, arg2, result):
         self._quads.append((str(op), str(arg1), str(arg2), str(result)))
-
-    # ── recorrido principal del programa ────────────────────────────────────
 
     def _gen_program(self, root):
         # root: start -> program; program: ID, var_section, proc_section, statement
@@ -49,9 +45,8 @@ class CodeGenerator:
                     statement = c
         # var_section no genera código (las variables se crean al asignarse)
 
-        # 1) Saltamos por encima de los cuerpos de procedimientos para llegar al main
+        # saltamos por encima de los cuerpos de procedimientos para llegar al main
         # generamos un cuadruplo inicial que salte los cuadruplos de las funciones
-        # 
         l_main = self._new_label()
         self._emit("goto", "_", "_", l_main)
 
@@ -61,7 +56,7 @@ class CodeGenerator:
                 if isinstance(child, Tree) and child.data == "procedure":
                     self._gen_procedure(child)
 
-        # 3) Etiqueta de inicio del main + cuerpo del main
+        # etiqueta de inicio del main + cuerpo del main
         self._emit("label", l_main, "_", "_")
         if statement is not None:
             self._exec(statement)
@@ -98,7 +93,7 @@ class CodeGenerator:
         # si no hay return explícito, regresamos sin valor
         self._emit("return", "_", "_", "_")
 
-    # ── dispatch de statements ──────────────────────────────────────────────
+    # statements
 
     def _exec(self, node):
         if isinstance(node, Token):
@@ -111,7 +106,7 @@ class CodeGenerator:
                 if isinstance(child, Tree):
                     self._exec(child)
 
-    # ── dispatch de expresiones (regresa nombre/valor del resultado) ────────
+    # expresiones (regresa nombre/valor del resultado) 
 
     def _gen(self, node):
         if isinstance(node, Token):
