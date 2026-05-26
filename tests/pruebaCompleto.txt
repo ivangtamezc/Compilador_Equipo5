@@ -10,17 +10,17 @@ program main{
 	var mensaje : string;
 
 	// retorna el cuadrado de x
-	cuadrado(x: int) {
+	proc cuadrado(x: int) {
 		return x * x;
 	}
 
 	// retorna el maximo de dos valores
-	mayor(a: int, b: int) {
+	proc mayor(a: int, b: int) {
 		if (a >= b) then { return a; } else { return b; }
 	}
 
 	// suma de 1 a n usando while (escribe resultado en variable global suma)
-	sumaHasta(n: int) {
+	proc sumaHasta(n: int) {
 		suma := 0;
 		i := 1;
 		while (i <= n) do

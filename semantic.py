@@ -1,6 +1,7 @@
 from lark import Tree, Token
 
 
+# clase de conveniencia para describir un error semántico
 class SemanticError:
     def __init__(self, message, line=None, column=None):
         self.message = message
@@ -14,6 +15,7 @@ class SemanticError:
 
 
 # representa la firma de un procedimiento declarado:
+# nos es útil para buscar si estos procedimientos existen o no dentro del programa
 # - name:   nombre del procedimiento
 # - params: lista de tuplas (nombre_param, tipo_param), en orden de declaración
 class ProcSignature:
@@ -31,16 +33,21 @@ class ProcSignature:
 # tipos en operaciones, declaraciones, scopes, llamadas a procedimientos, etc.
 class SemanticAnalyzer:
     def __init__(self, tree):
+        # arbol AST
         self.tree = tree
         self.errors = []
-        # pila de scopes, cada scope es un dict {nombre: tipo}
         # scopes[0] = scope global (variables del programa)
+        # realmente necesitamos un arreglo?
+        # scopes es donde se guardan las variables de todo el código para después 
+        # buscarlas también
         self.scopes = [{}]
         # tabla de procedimientos: {nombre: ProcSignature}
         self.proc_table = {}
         # nombre del procedimiento actual (None si estamos en main/begin)
         self.current_proc = None
 
+    # método principal de la clase
+    # visita recursivamente el árbol AST y regresa los errores encontrados, si es que lo hay
     def analyze(self):
         self.errors.clear()
         self.scopes = [{}]
@@ -49,7 +56,7 @@ class SemanticAnalyzer:
         self._visit(self.tree)
         return self.errors
 
-    # ── manejo de scopes ────────────────────────────────────────────────────
+    # manejo de scopes
 
     def _push_scope(self):
         self.scopes.append({})
@@ -57,16 +64,20 @@ class SemanticAnalyzer:
     def _pop_scope(self):
         self.scopes.pop()
 
+    # método para declarar una variable en el scope del código
+    # si ya existe, la truena
     def _declare(self, name, type_, tok=None):
-        """Declara una variable en el scope actual. Reporta error si ya existe."""
         if name in self.scopes[-1]:
             self._add_error(f"Variable '{name}' declarada más de una vez", tok)
             return False
+        # guarda la variable en el scope más reciente de la siguiente forma
+        # nombre : tipo
         self.scopes[-1][name] = type_
         return True
 
+    # busca una variable dentro del scope actual
+    # si no la encuentra, regresa none
     def _lookup(self, name):
-        """Busca una variable recorriendo la pila de scopes desde el más interno."""
         for scope in reversed(self.scopes):
             if name in scope:
                 return scope[name]
@@ -140,6 +151,12 @@ class SemanticAnalyzer:
         return decl_type == expr_type
 
 
+    # método particular para regresar el tipo de un nodo
+    # en nuestra grámatica definimos type de la siguiente forma
+    # type_of : TYPE
+    # TYPE    : "int" | "float" | "string" | "bool"
+    # por lo que necesitamos iterar por los hijos para encontrar el string de tipo
+    # los strings en el árbol de lark son del tipo Token
     def _resolve_type(self, type_node):
         # type_of tiene un único hijo Token (TYPE) con el valor del tipo
         for child in type_node.children:
@@ -147,8 +164,13 @@ class SemanticAnalyzer:
                 return child.value
         return "unknown"
 
-    # ── recorrido del programa ──────────────────────────────────────────────
+    # métodos para recorrer el programa en sí
 
+    # método principal para leer el programa entero! lo hace con los siguientes pasos:
+    # 1. visita todas las variables declaradas en dicho nivel y las verifica
+    # 2. recopila todas las firmas de procedimientos
+    # 3. visita recursivamente cada procedure declarado en orden de aparición
+    # 4. visita el bloque principal de código definido en program!
     def _v_program(self, node):
         # paso 1: recopila todas las variables del programa, al menos en ese nivel
         for child in node.children:
@@ -183,6 +205,7 @@ class SemanticAnalyzer:
         id_tok = proc_node.children[0]
         name = str(id_tok)
 
+        # si el procedimiento ya existe, añade el error
         if name in self.proc_table:
             self._add_error(f"Procedimiento '{name}' declarado más de una vez", id_tok)
             return
@@ -200,12 +223,20 @@ class SemanticAnalyzer:
 
         self.proc_table[name] = ProcSignature(name, params)
 
-    # ── declaraciones ───────────────────────────────────────────────────────
+    # análisis semántico de las declaraciones
 
     def _v_var_decl(self, node):
         # children: ID+ ... type_of (último hijo)
-        type_node = node.children[-1]
-        type_name = self._resolve_type(type_node)
+        type_node = node.children[-1] # obtiene el nodo type_of del árbol ast
+        type_name = self._resolve_type(type_node) # resuelve el tipo (simplemente busca en los hijos del nodo type_of encontrado anteriormente)
+        # por cada ID encontrado en var_section
+        # el ast se ve algo así por ejemplo
+        # var_decl
+        #   i
+        #   n
+        #   x
+        #   type_of int
+        # entonces, si el actual child es un Token (un string), declara la variable en el scope actual
         for child in node.children[:-1]:
             if isinstance(child, Token):
                 self._declare(str(child), type_name, child)
@@ -237,18 +268,24 @@ class SemanticAnalyzer:
         self.current_proc = prev_proc
         self._pop_scope()
 
-    # ── statements ──────────────────────────────────────────────────────────
+    # análisis semántico para los statements
+    # assign, if/else, for, while, proc_call
 
+    # recibe un nodo assignment y verifica si es válida la operación
+    # de hijo tiene ID y expr
     def _v_assignment(self, node):
         # children: Token(ID), Tree(expr)
-        id_tok = node.children[0]
-        expr_node = node.children[1]
+        id_tok = node.children[0] # nombre de la variable
+        expr_node = node.children[1] # expresión a asignar
         name = str(id_tok)
         decl_type = self._lookup(name)
+        # si esta variable NO fue declarada y se intentó actualizar la tronamos
         if decl_type is None:
             self._add_error(f"Variable '{name}' usada sin declarar", id_tok)
             self._infer(expr_node)
             return
+        # conseguimos el tipo esperado de la expresión
+        # para evitar que un int se asigne un tipo bool , por ejemplo
         expr_type = self._infer(expr_node)
         if not self._assign_compatible(decl_type, expr_type):
             self._add_error(
@@ -257,6 +294,7 @@ class SemanticAnalyzer:
                 id_tok,
             )
 
+    
     def _v_increment(self, node):
         # children: Token(ID), Token(INCR_OP)
         id_tok = node.children[0]
@@ -271,6 +309,8 @@ class SemanticAnalyzer:
                 id_tok,
             )
 
+    # revisa que las expresiones dentro de los ifs no vayan a ser entre tipos incorrectos utilizando infer
+    # despues visita recursivamente el bloque dentro del if
     def _v_if_stmt(self, node):
         cond = node.children[0]
         cond_type = self._infer(cond)
@@ -283,6 +323,8 @@ class SemanticAnalyzer:
             if isinstance(child, Tree):
                 self._visit(child)
 
+    # verifica que la expresión del while sea correcta
+    # despues recursivamente visita el interior del bloque
     def _v_while_stmt(self, node):
         cond = node.children[0]
         cond_type = self._infer(cond)
@@ -295,23 +337,32 @@ class SemanticAnalyzer:
             if isinstance(child, Tree):
                 self._visit(child)
 
+    # primero visita el nodo for_init que se encuentra al inicio
+    # revisa que la expresión dentro del for sea válida 
     def _v_for_stmt(self, node):
-        self._visit(node.children[0])
-        cond = node.children[1]
+        # hijos se ven así
+        # for_init, condicion, update, block
+        self._visit(node.children[0]) # el primer hijo es el init en realidad
+        cond = node.children[1] # aquí es donde se encuentra la condición del for
         cond_type = self._infer(cond)
         if cond_type not in ("bool", "unknown"):
             self._add_error(
                 f"La condición del 'for' debe ser booleana, se obtuvo '{cond_type}'",
                 cond,
             )
-        self._visit(node.children[2])
-        self._visit(node.children[3])
+        # seguimos visitando 
+        self._visit(node.children[2]) # el update
+        self._visit(node.children[3]) # el block
 
+    # verificación particular de la inicialización en el for (ej. i := 0)
     def _v_for_init(self, node):
+        # recibe el iterador, por ej. i
         id_tok = node.children[0]
-        expr_node = node.children[1]
+        expr_node = node.children[1] # nodo "expr"
         name = str(id_tok)
         decl_type = self._lookup(name)
+        # en el caso del lenguaje especificado, el iterador tiene que estar declarado con anterioridad en el código
+        # checa pruebaFor.txt
         if decl_type is None:
             self._add_error(f"Variable '{name}' usada sin declarar", id_tok)
             self._infer(expr_node)
@@ -324,6 +375,8 @@ class SemanticAnalyzer:
                 id_tok,
             )
 
+    # revisa recursivamente el contenido del write stmt, si tiene algo
+    # write() es válido
     def _v_write_stmt(self, node):
         for child in node.children:
             if isinstance(child, Tree):
@@ -337,8 +390,9 @@ class SemanticAnalyzer:
             if isinstance(child, Tree):
                 self._infer(child)
 
+    # método para verificar las llamadas a procedimientos
     def _v_proc_call(self, node):
-        # children: Token(ID), [Tree(arg_list)]
+        # hijos: id, lista de [Tree(arg_list)]
         id_tok = node.children[0]
         name = str(id_tok)
 
